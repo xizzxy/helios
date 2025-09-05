@@ -1,0 +1,54 @@
+[extend]
+# Gitleaks configuration for Helios project
+useDefault = true
+
+[[rules]]
+description = "AWS Access Key"
+regex = '''AKIA[0-9A-Z]{16}'''
+tags = ["key", "AWS"]
+
+[[rules]]
+description = "AWS Secret Key"
+regex = '''(?i)aws(.{0,20})?(?-i)['\"][0-9a-zA-Z\/+]{40}['\"]'''
+tags = ["key", "AWS"]
+
+[[rules]]
+description = "Redis Password"
+regex = '''(?i)redis(.{0,20})?['"][0-9a-zA-Z!@#$%^&*()_+={}|:<>?`~-]{8,}['"]'''
+tags = ["password", "Redis"]
+
+[[rules]]
+description = "JWT Secret"
+regex = '''(?i)jwt(.{0,20})?['"][0-9a-zA-Z!@#$%^&*()_+={}|:<>?`~-]{32,}['"]'''
+tags = ["key", "JWT"]
+
+[[rules]]
+description = "API Key"
+regex = '''(?i)api(.{0,20})?key(.{0,20})?['"][0-9a-zA-Z]{32,}['"]'''
+tags = ["key", "API"]
+
+[[rules]]
+description = "Private Key"
+regex = '''-----BEGIN (RSA|OPENSSH|DSA|EC|PGP) PRIVATE KEY-----'''
+tags = ["key", "private"]
+
+[[rules]]
+description = "Database URL"
+regex = '''(?i)(postgres|mysql|mongodb|redis)://[^\s]+'''
+tags = ["database", "url"]
+
+[allowlist]
+description = "Allowlist example files and test data"
+files = [
+    '''\.example$''',
+    '''\.sample$''',
+    '''test/.*\.go$''',
+    '''^configs/.*\.example\..*$''',
+]
+
+paths = [
+    '''configs/config\.example\.yaml''',
+    '''\.env\.example''',
+    '''README\.md''',
+    '''SECURITY\.md''',
+]

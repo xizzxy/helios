@@ -1,0 +1,180 @@
+
+services:
+  # Redis for rate limiting storage (STRONG consistency mode)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Etcd for configuration management
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.10
+    environment:
+      ETCD_NAME: etcd0
+      ETCD_DATA_DIR: /etcd-data
+      ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+      ETCD_ADVERTISE_CLIENT_URLS: http://0.0.0.0:2379
+      ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://0.0.0.0:2380
+      ETCD_INITIAL_CLUSTER: etcd0=http://0.0.0.0:2380
+      ETCD_INITIAL_CLUSTER_TOKEN: tkn
+      ETCD_INITIAL_CLUSTER_STATE: new
+    ports:
+      - "2379:2379"
+      - "2380:2380"
+    volumes:
+      - etcd_data:/etcd-data
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/etc/grafana/dashboards
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Jaeger for distributed tracing
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:14269/"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Mock backend service for testing
+  mock-backend:
+    image: mockserver/mockserver:latest
+    ports:
+      - "1080:1080"
+    environment:
+      - MOCKSERVER_WATCH_INITIALIZATION_JSON=true
+      - MOCKSERVER_PROPERTY_FILE=/config/mockserver.properties
+      - MOCKSERVER_INITIALIZATION_JSON_PATH=/config/initializerJson.json
+    volumes:
+      - ./mockserver:/config
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:1080/mockserver/status"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Helios Gateway
+  helios-gateway:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.gateway
+    ports:
+      - "8080:8080"   # HTTP API
+      - "9080:9080"   # gRPC API
+      - "2112:2112"   # Metrics
+    environment:
+      - HELIOS_GATEWAY_ADDRESS=:8080
+      - HELIOS_GATEWAY_GRPC_ADDRESS=:9080
+      - HELIOS_REDIS_ADDRESS=redis:6379
+      - HELIOS_ETCD_ENDPOINTS=etcd:2379
+      - HELIOS_METRICS_ENABLED=true
+      - HELIOS_METRICS_ADDRESS=:2112
+      - HELIOS_TRACING_ENABLED=true
+      - HELIOS_JAEGER_ENDPOINT=http://jaeger:14268/api/traces
+      - HELIOS_LOG_LEVEL=info
+      - HELIOS_CONSISTENCY_MODE=strong
+    depends_on:
+      redis:
+        condition: service_healthy
+      etcd:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+  # Helios Control Plane
+  helios-control:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.control
+    ports:
+      - "8081:8081"   # HTTP API
+      - "9081:9081"   # gRPC API
+    environment:
+      - HELIOS_CONTROL_ADDRESS=:8081
+      - HELIOS_CONTROL_GRPC_ADDRESS=:9081
+      - HELIOS_REDIS_ADDRESS=redis:6379
+      - HELIOS_ETCD_ENDPOINTS=etcd:2379
+      - HELIOS_METRICS_ENABLED=true
+      - HELIOS_TRACING_ENABLED=true
+      - HELIOS_JAEGER_ENDPOINT=http://jaeger:14268/api/traces
+      - HELIOS_LOG_LEVEL=info
+    depends_on:
+      redis:
+        condition: service_healthy
+      etcd:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  redis_data:
+  etcd_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  default:
+    name: helios-network

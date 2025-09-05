@@ -1,0 +1,23 @@
+# Multi-stage build for Helios Control Plane
+FROM golang:1.22-alpine AS builder
+ENV CGO_ENABLED=0 GOOS=linux GOPROXY=https://proxy.golang.org,direct
+RUN apk add --no-cache git ca-certificates tzdata
+WORKDIR /app
+
+# Cache deps
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy full source and tidy sums for all imports
+COPY . .
+RUN go mod tidy
+
+# Build
+RUN go build -ldflags="-w -s" -o /out/helios-control ./cmd/helios-control
+
+# ---- Runtime image
+FROM alpine:3.20
+RUN adduser -D -g '' app && apk add --no-cache ca-certificates tzdata
+USER app
+COPY --from=builder /out/helios-control /helios-control
+ENTRYPOINT ["/helios-control"]

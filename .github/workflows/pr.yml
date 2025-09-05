@@ -1,0 +1,171 @@
+name: Pull Request
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    types: [opened, synchronize, reopened]
+
+env:
+  GO_VERSION: '1.21'
+
+jobs:
+  pr-checks:
+    name: PR Quality Checks
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Check go mod tidy
+      run: |
+        go mod tidy
+        git diff --exit-code go.mod go.sum
+
+    - name: Check formatting
+      run: |
+        gofmt -s -w .
+        git diff --exit-code
+
+    - name: Run go vet
+      run: go vet ./...
+
+    - name: Check for TODO/FIXME comments
+      run: |
+        if grep -r "TODO\|FIXME" --include="*.go" . | grep -v "// TODO: "; then
+          echo "Found untracked TODO/FIXME comments. Please either fix them or add them to the tracking system."
+          exit 1
+        fi
+
+  size-check:
+    name: Binary Size Check
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Build and check binary sizes
+      run: |
+        make build-linux
+        echo "Binary sizes:"
+        ls -lh bin/
+        
+        # Check if binaries are reasonable size (< 50MB)
+        for binary in bin/*-linux; do
+          size=$(stat -c%s "$binary")
+          size_mb=$((size / 1024 / 1024))
+          echo "$binary: ${size_mb}MB"
+          if [ $size_mb -gt 50 ]; then
+            echo "Warning: $binary is larger than 50MB"
+            exit 1
+          fi
+        done
+
+  performance-check:
+    name: Performance Regression Check
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.base.ref == 'main'
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 2
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Run current benchmarks
+      run: |
+        go test -bench=. -benchmem ./... > current_bench.txt
+
+    - name: Checkout base branch
+      run: |
+        git checkout HEAD~1
+
+    - name: Run base benchmarks
+      run: |
+        go test -bench=. -benchmem ./... > base_bench.txt || true
+
+    - name: Compare benchmarks
+      run: |
+        echo "=== Current Benchmarks ==="
+        cat current_bench.txt
+        echo "=== Base Benchmarks ==="
+        cat base_bench.txt || echo "No base benchmarks available"
+
+  load-test-preview:
+    name: Load Test Preview
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.labels.*.name, 'load-test')
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker images
+      run: |
+        docker build -t helios-gateway:pr -f deploy/Dockerfile.gateway .
+
+    - name: Start test environment
+      run: |
+        docker-compose -f deploy/docker-compose.yml up -d redis etcd
+        docker run -d --name gateway-test \
+          --network helios-network \
+          -p 8080:8080 \
+          -e HELIOS_REDIS_ADDRESS=redis:6379 \
+          -e HELIOS_ETCD_ENDPOINTS=etcd:2379 \
+          helios-gateway:pr
+
+    - name: Install k6
+      run: |
+        sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+        echo "deb https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+        sudo apt-get update
+        sudo apt-get install k6
+
+    - name: Run load test
+      run: |
+        # Wait for services
+        sleep 30
+        
+        # Create basic load test
+        cat << 'EOF' > loadtest.js
+        import http from 'k6/http';
+        import { check } from 'k6';
+
+        export let options = {
+          stages: [
+            { duration: '30s', target: 10 },
+            { duration: '1m', target: 50 },
+            { duration: '30s', target: 0 },
+          ],
+        };
+
+        export default function() {
+          let response = http.get('http://localhost:8080/allow?tenant=test&api_key=test');
+          check(response, {
+            'status is 200 or 429': (r) => r.status === 200 || r.status === 429,
+            'response time < 100ms': (r) => r.timings.duration < 100,
+          });
+        }
+        EOF
+        
+        k6 run loadtest.js
+
+    - name: Cleanup
+      if: always()
+      run: |
+        docker stop gateway-test || true
+        docker rm gateway-test || true
+        docker-compose -f deploy/docker-compose.yml down || true

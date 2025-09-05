@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package helios.gateway.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/xizzxy/helios/api/proto/gateway";
+
+service GatewayService {
+  // Check if request is allowed under rate limit
+  rpc Allow(AllowRequest) returns (AllowResponse);
+  
+  // Get current quota status
+  rpc GetQuota(QuotaRequest) returns (QuotaResponse);
+  
+  // Health check
+  rpc Health(HealthRequest) returns (HealthResponse);
+  
+  // Get metrics
+  rpc GetMetrics(MetricsRequest) returns (MetricsResponse);
+}
+
+message AllowRequest {
+  string tenant = 1;           // Tenant identifier
+  string api_key = 2;          // API key for authentication
+  int32 cost = 3;              // Number of tokens to consume (default: 1)
+  string resource = 4;         // Optional resource identifier
+  map<string, string> metadata = 5; // Additional metadata
+}
+
+message AllowResponse {
+  bool allowed = 1;                    // Whether request is allowed
+  int64 remaining = 2;                 // Remaining quota
+  int64 limit = 3;                     // Total limit
+  google.protobuf.Timestamp reset_time = 4; // When quota resets
+  int64 retry_after_seconds = 5;       // Retry after (if not allowed)
+  string rate_limit_key = 6;           // Identifier for this limit
+}
+
+message QuotaRequest {
+  string tenant = 1;
+  string api_key = 2;
+  string resource = 3;
+}
+
+message QuotaResponse {
+  int64 remaining = 1;
+  int64 limit = 2;
+  google.protobuf.Timestamp reset_time = 3;
+  string rate_limit_key = 4;
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  string status = 1;           // "healthy" or "unhealthy"
+  string version = 2;
+  map<string, string> checks = 3; // Individual component health
+}
+
+message MetricsRequest {
+  repeated string metric_names = 1;
+}
+
+message MetricsResponse {
+  map<string, double> metrics = 1;
+  google.protobuf.Timestamp timestamp = 2;
+}

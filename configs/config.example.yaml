@@ -1,0 +1,97 @@
+# Helios Configuration Example
+# Copy this file to config.yaml and customize for your environment
+
+# Gateway configuration
+gateway:
+  address: ":8080"                    # HTTP API address
+  grpc_address: ":9080"              # gRPC API address
+  read_timeout: "30s"                # Request read timeout
+  write_timeout: "30s"               # Response write timeout
+  shutdown_timeout: "30s"            # Graceful shutdown timeout
+  max_request_size: 1048576          # Max request size in bytes (1MB)
+  consistency_mode: "fast"           # "fast" (local) or "strong" (Redis)
+
+# Control plane configuration
+control:
+  address: ":8081"                   # HTTP API address
+  grpc_address: ":9081"              # gRPC API address
+  read_timeout: "30s"
+  write_timeout: "30s"
+  shutdown_timeout: "30s"
+
+# Redis configuration (for STRONG consistency mode)
+redis:
+  address: "localhost:6379"          # Redis server address
+  password: ""                       # Redis password (use env var in production)
+  database: 0                        # Redis database number
+  pool_size: 100                     # Connection pool size
+  min_idle_conns: 10                 # Minimum idle connections
+  max_retries: 3                     # Max retry attempts
+  dial_timeout: "5s"                 # Connection timeout
+  read_timeout: "3s"                 # Read timeout
+  write_timeout: "3s"                # Write timeout
+
+# etcd configuration (for dynamic config)
+etcd:
+  endpoints:                         # etcd cluster endpoints
+    - "localhost:2379"
+  dial_timeout: "5s"                 # Connection timeout
+  username: ""                       # etcd username (use env var)
+  password: ""                       # etcd password (use env var)
+
+# Observability configuration
+observability:
+  metrics_enabled: true              # Enable Prometheus metrics
+  metrics_address: ":2112"           # Metrics server address
+  tracing_enabled: false             # Enable OpenTelemetry tracing
+  jaeger_endpoint: "http://localhost:14268/api/traces"
+  service_name: "helios-gateway"     # Service name for tracing
+  service_version: "dev"             # Service version
+  log_level: "info"                  # Log level: debug, info, warn, error
+  enable_profiling: false            # Enable pprof profiling
+  profiling_address: ":6060"         # Profiling server address
+
+# Authentication configuration
+auth:
+  jwt_enabled: false                 # Enable JWT authentication
+  jwt_secret_key: ""                 # JWT secret (use env var in production)
+  jwt_issuer: "helios"               # JWT issuer
+  jwt_audience: "helios-api"         # JWT audience
+  jwt_expiration: "24h"              # JWT token expiration
+
+# Resilience configuration
+resilience:
+  circuit_breaker:
+    enabled: true                    # Enable circuit breaker
+    failure_threshold: 10            # Failures before opening
+    timeout_duration: "60s"          # Timeout before half-open
+    max_concurrent_request: 100      # Max concurrent requests
+
+  bulkhead:
+    enabled: true                    # Enable bulkhead pattern
+    max_concurrency: 1000            # Max concurrent requests
+    queue_size: 10000                # Request queue size
+    tenant_isolation: true           # Isolate tenants
+
+  load_shedding:
+    enabled: true                    # Enable load shedding
+    cpu_threshold: 0.8               # CPU threshold (0.0-1.0)
+    memory_threshold: 0.85           # Memory threshold (0.0-1.0)
+    latency_threshold: "100ms"       # Latency threshold
+    queue_length_threshold: 1000     # Queue length threshold
+
+  retry:
+    enabled: true                    # Enable retry mechanism
+    max_retries: 3                   # Maximum retry attempts
+    initial_interval: "100ms"        # Initial retry interval
+    max_interval: "5s"               # Maximum retry interval
+    multiplier: 2.0                  # Backoff multiplier
+
+# Default rate limiting rules (can be overridden via control plane)
+default_rate_limits:
+  - tenant: "*"                      # Default for all tenants
+    resource: "api"                  # Default resource
+    algorithm: "token_bucket"        # Rate limiting algorithm
+    limit: 100                       # Requests per window
+    window_seconds: 60               # Window duration
+    burst_limit: 120                 # Burst capacity (for token bucket)

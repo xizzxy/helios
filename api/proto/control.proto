@@ -1,0 +1,241 @@
+syntax = "proto3";
+
+package helios.control.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/xizzxy/helios/api/proto/control";
+
+service ControlService {
+  // Tenant management
+  rpc CreateTenant(CreateTenantRequest) returns (CreateTenantResponse);
+  rpc UpdateTenant(UpdateTenantRequest) returns (UpdateTenantResponse);
+  rpc DeleteTenant(DeleteTenantRequest) returns (DeleteTenantResponse);
+  rpc GetTenant(GetTenantRequest) returns (GetTenantResponse);
+  rpc ListTenants(ListTenantsRequest) returns (ListTenantsResponse);
+  
+  // Rate limit management
+  rpc CreateRateLimit(CreateRateLimitRequest) returns (CreateRateLimitResponse);
+  rpc UpdateRateLimit(UpdateRateLimitRequest) returns (UpdateRateLimitResponse);
+  rpc DeleteRateLimit(DeleteRateLimitRequest) returns (DeleteRateLimitResponse);
+  rpc GetRateLimit(GetRateLimitRequest) returns (GetRateLimitResponse);
+  rpc ListRateLimits(ListRateLimitsRequest) returns (ListRateLimitsResponse);
+  
+  // API Key management
+  rpc CreateAPIKey(CreateAPIKeyRequest) returns (CreateAPIKeyResponse);
+  rpc RevokeAPIKey(RevokeAPIKeyRequest) returns (RevokeAPIKeyResponse);
+  rpc ListAPIKeys(ListAPIKeysRequest) returns (ListAPIKeysResponse);
+  
+  // Configuration management
+  rpc GetConfig(GetConfigRequest) returns (GetConfigResponse);
+  rpc UpdateConfig(UpdateConfigRequest) returns (UpdateConfigResponse);
+}
+
+// Tenant messages
+message Tenant {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  bool enabled = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+  map<string, string> metadata = 7;
+}
+
+message CreateTenantRequest {
+  string name = 1;
+  string description = 2;
+  map<string, string> metadata = 3;
+}
+
+message CreateTenantResponse {
+  Tenant tenant = 1;
+}
+
+message UpdateTenantRequest {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  bool enabled = 4;
+  map<string, string> metadata = 5;
+}
+
+message UpdateTenantResponse {
+  Tenant tenant = 1;
+}
+
+message DeleteTenantRequest {
+  string id = 1;
+}
+
+message DeleteTenantResponse {}
+
+message GetTenantRequest {
+  string id = 1;
+}
+
+message GetTenantResponse {
+  Tenant tenant = 1;
+}
+
+message ListTenantsRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListTenantsResponse {
+  repeated Tenant tenants = 1;
+  string next_page_token = 2;
+}
+
+// Rate limit messages
+message RateLimit {
+  string id = 1;
+  string tenant_id = 2;
+  string resource = 3;          // Optional resource pattern
+  int64 limit = 4;              // Requests per window
+  int64 window_seconds = 5;     // Window size in seconds
+  Algorithm algorithm = 6;       // Rate limiting algorithm
+  bool enabled = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+enum Algorithm {
+  ALGORITHM_UNSPECIFIED = 0;
+  ALGORITHM_TOKEN_BUCKET = 1;
+  ALGORITHM_SLIDING_WINDOW = 2;
+  ALGORITHM_LEAKY_BUCKET = 3;
+}
+
+message CreateRateLimitRequest {
+  string tenant_id = 1;
+  string resource = 2;
+  int64 limit = 3;
+  int64 window_seconds = 4;
+  Algorithm algorithm = 5;
+}
+
+message CreateRateLimitResponse {
+  RateLimit rate_limit = 1;
+}
+
+message UpdateRateLimitRequest {
+  string id = 1;
+  int64 limit = 2;
+  int64 window_seconds = 3;
+  Algorithm algorithm = 4;
+  bool enabled = 5;
+}
+
+message UpdateRateLimitResponse {
+  RateLimit rate_limit = 1;
+}
+
+message DeleteRateLimitRequest {
+  string id = 1;
+}
+
+message DeleteRateLimitResponse {}
+
+message GetRateLimitRequest {
+  string id = 1;
+}
+
+message GetRateLimitResponse {
+  RateLimit rate_limit = 1;
+}
+
+message ListRateLimitsRequest {
+  string tenant_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListRateLimitsResponse {
+  repeated RateLimit rate_limits = 1;
+  string next_page_token = 2;
+}
+
+// API Key messages
+message APIKey {
+  string id = 1;
+  string tenant_id = 2;
+  string name = 3;
+  string key_prefix = 4;        // Only first few chars for display
+  bool enabled = 5;
+  repeated string scopes = 6;   // Permissions
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp expires_at = 8;
+  google.protobuf.Timestamp last_used_at = 9;
+}
+
+message CreateAPIKeyRequest {
+  string tenant_id = 1;
+  string name = 2;
+  repeated string scopes = 3;
+  google.protobuf.Timestamp expires_at = 4;
+}
+
+message CreateAPIKeyResponse {
+  APIKey api_key = 1;
+  string key_value = 2;         // Full key only returned on creation
+}
+
+message RevokeAPIKeyRequest {
+  string id = 1;
+}
+
+message RevokeAPIKeyResponse {}
+
+message ListAPIKeysRequest {
+  string tenant_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListAPIKeysResponse {
+  repeated APIKey api_keys = 1;
+  string next_page_token = 2;
+}
+
+// Config messages
+message Config {
+  string consistency_mode = 1;   // "fast" or "strong"
+  RedisConfig redis = 2;
+  EtcdConfig etcd = 3;
+  ObservabilityConfig observability = 4;
+  map<string, string> features = 5;
+}
+
+message RedisConfig {
+  string address = 1;
+  int32 pool_size = 2;
+  int32 timeout_ms = 3;
+}
+
+message EtcdConfig {
+  repeated string endpoints = 1;
+  int32 timeout_ms = 2;
+}
+
+message ObservabilityConfig {
+  bool metrics_enabled = 1;
+  bool tracing_enabled = 2;
+  string jaeger_endpoint = 3;
+  int32 metrics_port = 4;
+}
+
+message GetConfigRequest {}
+
+message GetConfigResponse {
+  Config config = 1;
+}
+
+message UpdateConfigRequest {
+  Config config = 1;
+}
+
+message UpdateConfigResponse {
+  Config config = 1;
+}
