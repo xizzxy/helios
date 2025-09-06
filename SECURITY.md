@@ -388,14 +388,5 @@ observability:
 
 For security-related questions or concerns:
 
-- **Email**: security@example.com
-- **PGP Key**: Available at https://example.com/security.asc
-- **Bug Bounty**: Details at https://example.com/security/bounty
+- **Email**: isabellaschiappa@hotmail.com
 
-## Acknowledgments
-
-We thank the security community for their responsible disclosure practices and contributions to making Helios more secure.
-
----
-
-Last updated: 2024-01-15
