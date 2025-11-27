@@ -78,7 +78,7 @@ curl.exe http://localhost:8080/metrics
 
 ---
 
-## 📊 Grafana Dashboard
+##  Grafana Dashboard
 
 - Open: [http://localhost:3000](http://localhost:3000)
 - Login: **admin / (password from deploy/.env.grafana)**
@@ -87,7 +87,7 @@ curl.exe http://localhost:8080/metrics
 
 ---
 
-## 🏗️ Architectural Overview
+##  Architectural Overview
 
 Helios is structured into multiple components designed for **scalability, resilience, and observability**:
 
@@ -130,7 +130,7 @@ Helios is structured into multiple components designed for **scalability, resili
 
 ---
 
-## 🔑 Configuration
+##  Configuration
 
 - **API Keys**:
   Configure allowed API keys with environment variable:
@@ -154,7 +154,7 @@ Helios is structured into multiple components designed for **scalability, resili
 
 ---
 
-## 🛑 Stop Services
+## Stop Services
 
 ```powershell
 docker compose -f .\deploy\docker-compose.yml down
@@ -162,7 +162,7 @@ docker compose -f .\deploy\docker-compose.yml down
 
 ---
 
-## 🚀 Production Hardening Checklist
+##  Production Hardening Checklist
 
 - [ ] Replace demo API keys with real config
 - [ ] Use env-driven Grafana credentials
@@ -174,12 +174,3 @@ docker compose -f .\deploy\docker-compose.yml down
 
 ---
 
-## 🤝 Contributing
-
-- Fork, branch, commit, PR.
-- Security policy: see `SECURITY.md`.
-- Pre-commit scans: run `make security-scan` if available.
-
----
-
-**Helios** - Built for scale, designed for reliability. ⚡
